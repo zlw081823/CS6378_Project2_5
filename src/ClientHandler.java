@@ -57,6 +57,7 @@ public class ClientHandler {
 		int seqNum  = 1;
 		
 		while (seqNum <= msgNum) {
+			long time = System.currentTimeMillis();
 			if (seqNum == 1) {
 				Message request = new Message(clientID, clientHostName, seqNum, "request", System.currentTimeMillis());
 				seqNum ++;
@@ -119,6 +120,7 @@ public class ClientHandler {
 					lock.unlock();
 				}				
 			}
+			System.out.println("Time spend on generating and sending a REQUEST: <" + (System.currentTimeMillis() - time) + ">ms!!!");
 		}	
 	}
 	
@@ -142,9 +144,12 @@ public class ClientHandler {
 						replyCnt = 0;
 						failedFlg = false;	// Trust me, this is correct!
 						System.out.println("Enter CRITICAL SECTION!!!!!!!");
+						long time  = System.currentTimeMillis();
 						logInfo(currentRequest.getSenderID(), System.currentTimeMillis() - currentRequest.getTimeStamp());
+						System.out.println("Time spend to log the info into file: <" + (System.currentTimeMillis() - time) + ">ms!!!!");
+						time = System.currentTimeMillis();
 						sendRequest2Server(currentRequest);
-						System.out.println("Leave CRITICAL SECTION!!!!!!!");
+						System.out.println("Leave CRITICAL SECTION!!!!!!! Total time spent in CS: <" + (System.currentTimeMillis() - time) + ">ms!!!");
 						for (int targetID : QUORUM[clientID - 1]) {
 							msgExCntTotal++;
 							msgSendCnt[RELEASE]++;
@@ -201,9 +206,12 @@ public class ClientHandler {
 				replyCnt = 0;
 				failedFlg = false;	// Trust me, this is correct!
 				System.out.println("Enter CRITICAL SECTION!!!!!!!");
+				long time  = System.currentTimeMillis();
 				logInfo(currentRequest.getSenderID(), System.currentTimeMillis() - currentRequest.getTimeStamp());
+				System.out.println("Time spend to log the info into file: <" + (System.currentTimeMillis() - time) + ">ms!!!!");
+				time = System.currentTimeMillis();
 				sendRequest2Server(currentRequest);
-				System.out.println("Leave CRITICAL SECTION!!!!!!!");
+				System.out.println("Leave CRITICAL SECTION!!!!!!! Total time spent in CS: <" + (System.currentTimeMillis() - time) + ">ms!!!");
 				for (int targetID : QUORUM[clientID - 1]) {
 					msgExCntTotal++;
 					msgSendCnt[RELEASE]++;
@@ -274,9 +282,12 @@ public class ClientHandler {
 					replyCnt = 0;
 					failedFlg = false;	// Trust me, this is correct!
 					System.out.println("Enter CRITICAL SECTION!!!!!!!");
+					long time  = System.currentTimeMillis();
 					logInfo(currentRequest.getSenderID(), System.currentTimeMillis() - currentRequest.getTimeStamp());
+					System.out.println("Time spend to log the info into file: <" + (System.currentTimeMillis() - time) + ">ms!!!!");
+					time = System.currentTimeMillis();
 					sendRequest2Server(currentRequest);
-					System.out.println("LEAVE CRITICAL SECTION!!!!!!!");
+					System.out.println("Leave CRITICAL SECTION!!!!!!! Total time spent in CS: <" + (System.currentTimeMillis() - time) + ">ms!!!");
 					for (int targetID : QUORUM[clientID - 1]) {
 						msgExCntTotal++;
 						msgSendCnt[RELEASE]++;
@@ -334,9 +345,12 @@ public class ClientHandler {
 						replyCnt = 0;
 						failedFlg = false;	// Trust me, this is correct!
 						System.out.println("Enter CRITICAL SECTION!!!!!!!");
+						long time  = System.currentTimeMillis();
 						logInfo(currentRequest.getSenderID(), System.currentTimeMillis() - currentRequest.getTimeStamp());
+						System.out.println("Time spend to log the info into file: <" + (System.currentTimeMillis() - time) + ">ms!!!!");
+						time = System.currentTimeMillis();
 						sendRequest2Server(currentRequest);
-						System.out.println("LEAVE CRITICAL SECTION!!!!!!!");
+						System.out.println("Leave CRITICAL SECTION!!!!!!! Total time spent in CS: <" + (System.currentTimeMillis() - time) + ">ms!!!");
 						for (int targetID : QUORUM[clientID - 1]) {
 							msgExCntTotal++;
 							msgSendCnt[RELEASE]++;
