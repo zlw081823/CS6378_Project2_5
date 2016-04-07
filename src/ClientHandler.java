@@ -1,0 +1,413 @@
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.net.Socket;
+import java.net.UnknownHostException;
+import java.util.Random;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
+public class ClientHandler {
+
+	final static int UNLOCKED = 0;
+	final static int LOCKED = 1;
+	final static int[][] QUORUM = {{1, 2, 4}, {2, 3, 4, 7}, {1, 3, 7}, {4, 5, 6, 7}, {2, 3, 5, 6},
+			{1, 3, 6}, {3, 4, 5, 7}};
+	final static int msgNum = 41;
+	
+	final static int REQUEST = 0;
+	final static int REPLY = 1;
+	final static int RELEASE = 2;
+	final static int INQUIRE = 3;
+	final static int FAILED = 4;
+	final static int YIELD = 5;
+
+	public volatile PriorityBlockingQueue<Message> reqWaitingQ = new PriorityBlockingQueue<>(300);
+	public volatile PriorityBlockingQueue<Message> inquireRecvQ = new PriorityBlockingQueue<>(100);
+	public volatile PriorityBlockingQueue<Message> inqWaitingQ = new PriorityBlockingQueue<>(100);
+
+	public volatile Message currentRequest = null;
+	
+	public volatile int replyCnt = 0;
+	public volatile int state = UNLOCKED;
+	public volatile int[] quorumRecvCnt = {0, 0, 0, 0, 0, 0, 0};	// indicate whether I q1 has received request from q2 & q2, to avoid unnecessary failed message
+	public volatile boolean inquireSendFlg = false;
+	public volatile boolean failedFlg = false;
+	
+	public volatile int[] msgExCnt = {0, 0, 0, 0, 0, 0};
+	public volatile int msgExCntTotal = 0;
+	
+	private Lock lock = new ReentrantLock();
+	private Condition cond = lock.newCondition();
+	
+	/**
+	 * This method is used to generate requests and put it in a priority queue
+	 * @param clientID
+	 * @throws InterruptedException 
+	 */
+	public void reqGenerate (int clientID) throws InterruptedException {
+		String clientHostName = "dc" + (clientID + 25) + ".utdallas.edu";
+		Random r = new Random();
+		int seqNum  = 1;
+		
+		while (seqNum <= msgNum) {
+			if (seqNum == 1) {
+				Message request = new Message(clientID, clientHostName, seqNum, "request", System.currentTimeMillis());
+				seqNum ++;
+				
+				// Generate and send at the same time!
+				new Thread(new Runnable() {
+					public void run() {
+						for (int targetID : QUORUM[clientID - 1]) {	// Send the request to everyone in the QUORUM ( ID - 1) -> out of bound!
+							try {
+								Socket sendSocket = new Socket("dc" + (targetID + 25) + ".utdallas.edu", 6666);
+								ObjectOutputStream out = new ObjectOutputStream(sendSocket.getOutputStream());
+								out.writeObject(request);
+								out.close();
+								sendSocket.close();
+							} catch (IOException e) {
+								e.printStackTrace();
+							}
+						}
+					}
+				}).start();
+				
+				try {
+					Thread.sleep(r.nextInt(50 - 10) + 10);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+			} else {
+				lock.lock();
+				cond.await();	// Hand over the lock			
+				try {
+					Message request = new Message(clientID, clientHostName, seqNum, "request", System.currentTimeMillis());
+					seqNum ++;
+					
+					// Generate and send at the same time!
+					new Thread(new Runnable() {
+						public void run() {
+							for (int targetID : QUORUM[clientID - 1]) {	// Send the request to everyone in the QUORUM ( ID - 1) -> out of bound!
+								try {
+									Socket sendSocket = new Socket("dc" + (targetID + 25) + ".utdallas.edu", 6666);
+									ObjectOutputStream out = new ObjectOutputStream(sendSocket.getOutputStream());
+									out.writeObject(request);
+									out.close();
+									sendSocket.close();
+								} catch (IOException e) {
+									e.printStackTrace();
+								}
+							}
+						}
+					}).start();
+					
+					try {
+						Thread.sleep(r.nextInt(50 - 10) + 10);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}				
+				} finally {
+					lock.unlock();
+				}				
+			}
+		}	
+	}
+	
+	public void requestHandler (Message msgIn, int clientID) {
+		// Routine count
+		msgExCntTotal++;
+		msgExCnt[REQUEST]++;
+		
+		if (state == UNLOCKED) {	// waitingQ is empty & current request is null
+			state = LOCKED;
+			currentRequest = msgIn;
+			quorumRecvCnt[msgIn.getSenderID() - 1] ++;
+			if (currentRequest.getSenderID() == clientID) {	// Don't send reply to myself, just replyCnt++
+				replyCnt ++;
+				if (replyCnt == QUORUM[clientID - 1].length) {
+					lock.lock();
+					cond.signal();	// wake another awaiting lock up
+					try {
+						replyCnt = 0;
+						failedFlg = false;	// Trust me, this is correct!
+						System.out.println("Start to send WRITE to server!!!!!!!");
+						logInfo(currentRequest.getSenderID(), System.currentTimeMillis() - currentRequest.getTimeStamp());
+						sendRequest2Server(currentRequest);
+						System.out.println("Finish sending WRITE to server!!!!!!!");
+						for (int targetID : QUORUM[clientID - 1]) {
+							msgExCntTotal++;
+							msgExCnt[RELEASE]++;
+							sendMsg2Client("release", targetID);
+							System.out.println("<RELEASE> has been sent to client <" + targetID + "> in the QUORUM!!!!!!!!!!!!");
+						}						
+					} finally {
+						lock.unlock();
+					}
+				}
+			} else {
+				msgExCntTotal++;
+				msgExCnt[REPLY]++;
+				sendMsg2Client("reply", currentRequest.getSenderID());
+				System.out.println("Send <REPLY> to client <" + currentRequest.getSenderID() + ">!!!!!!!!!!!!!!!!");
+			}
+		} else {	// already send reply to some client, including myself
+			reqWaitingQ.add(msgIn);
+			if (quorumRecvCnt[msgIn.getSenderID() - 1] == 0) { // no request sent from this same client before
+				quorumRecvCnt[msgIn.getSenderID() - 1] ++;
+				if (msgIn.compareTo(currentRequest) == -1 && msgIn.compareTo(reqWaitingQ.peek()) == 0) {	// HP than current request and the HIGEST in the waiting queue
+					inqWaitingQ.put(msgIn); 	// Store those coming request with HP than current request, only send reply to the top of them, and failed to the other 
+					if (inquireSendFlg == false) {
+						msgExCntTotal++;
+						msgExCnt[INQUIRE]++;
+						inquireSendFlg = true;
+						sendMsg2Client("inquire", currentRequest.getSenderID());
+						System.out.println("Send <INQUIRE> to client <" + currentRequest.getSenderID() + ">, current inquireSendFlg is <" + inquireSendFlg + ">");												
+					} else {
+						System.out.println("Already sent <INQUIRE> before!");
+					}
+				} else {
+					msgExCntTotal++;
+					msgExCnt[FAILED]++;
+					sendMsg2Client("failed", msgIn.getSenderID());
+					System.out.println("Send <FAILED> to client <" + msgIn.getSenderID() + ">");
+				}						
+			} else {
+				System.out.println("Previous request from the same client has not been processed or has not finished processing!");
+			}
+		}
+	}
+
+	public void replyHandler (int clientID) {
+		// Routine count
+		msgExCntTotal++;
+		msgExCnt[REPLY]++;
+
+		replyCnt ++;
+		if (replyCnt == QUORUM[clientID - 1].length) {
+			replyCnt = 0;
+			failedFlg = false;	// Trust me, this is correct!
+			System.out.println("Start to send WRITE to server!!!!!!!");
+			logInfo(currentRequest.getSenderID(), System.currentTimeMillis() - currentRequest.getTimeStamp());
+			sendRequest2Server(currentRequest);
+			System.out.println("Finish sending WRITE to server!!!!!!!");
+			for (int targetID : QUORUM[clientID - 1]) {
+				msgExCntTotal++;
+				msgExCnt[RELEASE]++;
+				sendMsg2Client("release", targetID);
+				System.out.println("<RELEASE> has been sent to client <" + targetID + "> in the QUORUM!!!!!!!!!!!!");
+			}
+		}
+	}
+	
+	public void failedHandler () throws InterruptedException {
+		// Routine count
+		msgExCntTotal++;
+		msgExCnt[FAILED]++;
+		
+		failedFlg = true;
+		while (inquireRecvQ.isEmpty() == false) {
+			msgExCntTotal++;
+			msgExCnt[YIELD]++;
+			int targetID = inquireRecvQ.take().getSenderID();
+			sendMsg2Client("yield", targetID);
+			replyCnt --;
+			System.out.println("Send postponed <YIELD> to client <" + targetID + "> due to receiving FAILED!");
+		}
+	}
+	
+	/**
+	 * 
+	 * @param msgIn (INQUIRE)
+	 */
+	public void inquireHandler (Message msgIn) {
+		// Routine count
+		msgExCntTotal++;
+		msgExCnt[INQUIRE]++;
+
+		if (failedFlg == true) {
+			msgExCntTotal++;
+			msgExCnt[YIELD]++;
+			sendMsg2Client("yield", msgIn.getSenderID());
+			replyCnt --;
+			System.out.println("Send <YIELD> to cliend <" + msgIn.getSenderID() + "> due to existing FAILED received!");
+		} else {
+			inquireRecvQ.put(msgIn);	// All these are INQUIRE
+		}
+	}
+	
+	public void yieldHandler () throws InterruptedException {
+		// Routine count
+		msgExCntTotal++;
+		msgExCnt[YIELD]++;
+
+		// Also need to send failed to those in the inquireSendQ
+		inquireSendFlg = false;
+		reqWaitingQ.put(currentRequest);
+		currentRequest = reqWaitingQ.take();
+		msgExCntTotal++;
+		msgExCnt[REPLY]++;
+		sendMsg2Client("reply", currentRequest.getSenderID());	// Could use the same thing in the requestHandler -> reply++ directly
+		System.out.println("Send <REPLY> to new HP client <" + currentRequest.getSenderID() + ">");
+		inqWaitingQ.remove();
+		while (inqWaitingQ.isEmpty() == false) {
+			msgExCntTotal++;
+			msgExCnt[FAILED]++;
+			sendMsg2Client("failed", inqWaitingQ.take().getSenderID());
+			System.out.println("Send <FAILED> to LP client in the same inqWaitingQ of new current request");
+		}
+	}
+	
+	public void releaseHandler (int clientID) throws InterruptedException {
+		// Routine Check
+		msgExCntTotal++;
+		msgExCnt[RELEASE]++;
+
+		if (inquireSendFlg == true) {
+			inquireSendFlg = false;
+			inqWaitingQ.remove();
+			while (inqWaitingQ.isEmpty() == false) {
+				msgExCntTotal++;
+				msgExCnt[FAILED]++;
+				sendMsg2Client("failed", inqWaitingQ.take().getSenderID());
+				System.out.println("Send <FAILED> to LP client in the same inqWaitingQ of new current request");
+			}
+		}
+		
+		if (reqWaitingQ.isEmpty()) {
+			currentRequest = null;
+			state = UNLOCKED;
+			System.out.println("No more waiting requests! Current state is changed to <" + state + ">!!!!!!!!!!!!!!!!!!!!!!s");
+		} else {
+			currentRequest = reqWaitingQ.take();
+			state = LOCKED;	// Unchanged
+			if (currentRequest.getSenderID() == clientID) {	// Don't send reply to myself, just replyCnt++
+				replyCnt ++;
+				if (replyCnt == QUORUM[clientID - 1].length) {
+					lock.lock();
+					cond.signal();
+					try {
+						replyCnt = 0;
+						failedFlg = false;	// Trust me, this is correct!
+						System.out.println("Start to send WRITE to server!!!!!!!");
+						logInfo(currentRequest.getSenderID(), System.currentTimeMillis() - currentRequest.getTimeStamp());
+						sendRequest2Server(currentRequest);
+						System.out.println("Finish sending WRITE to server!!!!!!!");
+						for (int targetID : QUORUM[clientID - 1]) {
+							msgExCntTotal++;
+							msgExCnt[RELEASE]++;
+							sendMsg2Client("release", targetID);
+							System.out.println("<RELEASE> has been sent to client <" + targetID + "> in the QUORUM!!!!!!!!!!!!");
+						}						
+					} finally {
+						lock.unlock();
+					}
+				}
+			} else {
+				msgExCntTotal++;
+				msgExCnt[REPLY]++;
+				sendMsg2Client("reply", currentRequest.getSenderID());
+			}
+			System.out.println("Send reply to new top currentRequest <" + currentRequest.getSenderID() + ">");
+		}
+	}
+	
+	/**
+	 * This method is used to send message to clients (only send)
+	 * @param msgType
+	 * @param targetClientID
+	 */
+	public static void sendMsg2Client (String msgType, int targetClientID) {
+		
+		try {
+			Socket sendSocket = new Socket("dc" + (targetClientID + 25) + ".utdallas.edu", 6666);	// All ID are from 1 to 7!!
+			ObjectOutputStream out = new ObjectOutputStream(sendSocket.getOutputStream());
+			Message msgOut = new Message(msgType);	// When send inquire I need to reply? Have I handle that already?
+			out.writeObject(msgOut);
+			out.close();
+			sendSocket.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	/**
+	 * This method is used to send request to server during EXECUTING state
+	 * @param currentRequest
+	 */
+	public synchronized static void sendRequest2Server (Message currentRequest) {
+		String targetHostname = "dc" + ThreadLocalRandom.current().nextInt(23, 26) + ".utdallas.edu";	// Randomly choose a server
+		try {
+			Socket clientSocket = new Socket(targetHostname, 6666);
+			ObjectOutputStream out = new ObjectOutputStream(clientSocket.getOutputStream());
+			ObjectInputStream in = new ObjectInputStream(clientSocket.getInputStream());
+			
+			Message msgOut = currentRequest;
+			out.writeObject(msgOut);
+			System.out.println("#" + currentRequest.getSeqNum() + " WRITE request sent!");
+			
+			if ((Message) in.readObject() != null) {	
+				System.out.println("Write operation succeeded! - " + targetHostname);
+			}
+			
+			out.close();
+			in.close();
+			clientSocket.close();		
+		} catch (UnknownHostException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		} catch (ClassNotFoundException e) {
+			e.printStackTrace();
+		}		
+	}
+	
+	public void createFile (int clientID) {
+		String fileDir = "/tmp/user/java/client" + clientID;
+		File file = new File(fileDir);
+		
+		if (file.exists()) {
+			System.out.println("File <client" + clientID + "> already exists!");
+		} else {
+			File parentFile = file.getParentFile();
+			parentFile.mkdirs();
+			try {
+				file.createNewFile();
+				System.out.println("File <client" + clientID + "> is created!");
+			} catch (IOException e) {
+				e.printStackTrace();
+				System.err.println("Creating file failed!");
+			}
+		}		
+	}
+	
+	public void write1Line2File (int clientID, String log) {
+		File file = new File("/tmp/user/java/client" + clientID);
+		
+		if (file.exists()) {
+			try {
+				FileWriter writer = new FileWriter(file, true);
+				writer.write(log);
+				writer.write(System.getProperty("line.separator"));	// Insert new line!
+				writer.close();				
+			} catch (IOException e) {
+				e.printStackTrace();
+				System.err.println("Cannot open the file writer!");
+			}
+		}	
+	}
+	
+	public void logInfo (int clientID, long timeElapse) {
+		String numOfMsg = "Request <" + msgExCnt[REQUEST] + ">, " + "Reply <" + msgExCnt[REPLY] + ">, " + "Release <" + msgExCnt[RELEASE] + ">, " + "Inquire <" + msgExCnt[INQUIRE] + ">, " + "Failed <" + msgExCnt[FAILED] + ">, " + "Yield <" + msgExCnt[YIELD] + ">. ";
+		String time = "Time elapsed is <" + timeElapse + ">";
+		for (int i = 0; i < 6; i++) 
+			msgExCnt[i] = 0;
+		write1Line2File(clientID, numOfMsg);
+		write1Line2File(clientID, time);
+		write1Line2File(clientID, "----------------------------------------------------------------------------------------------------------");
+	}
+}
