@@ -84,7 +84,10 @@ public class ClientHandler {
 				}
 			} else {
 				lock.lock();
-				cond.await();	// Hand over the lock			
+				System.out.println("Wait for the signal of leaving CS!");
+				cond.await();	// Hand over the lock
+				System.out.println("Wake up!");
+				
 				try {
 					Message request = new Message(clientID, clientHostName, seqNum, "request", System.currentTimeMillis());
 					seqNum ++;
@@ -135,10 +138,10 @@ public class ClientHandler {
 					try {
 						replyCnt = 0;
 						failedFlg = false;	// Trust me, this is correct!
-						System.out.println("Start to send WRITE to server!!!!!!!");
+						System.out.println("Enter CRITICAL SECTION!!!!!!!");
 						logInfo(currentRequest.getSenderID(), System.currentTimeMillis() - currentRequest.getTimeStamp());
 						sendRequest2Server(currentRequest);
-						System.out.println("Finish sending WRITE to server!!!!!!!");
+						System.out.println("Leave CRITICAL SECTION!!!!!!!");
 						for (int targetID : QUORUM[clientID - 1]) {
 							msgExCntTotal++;
 							msgExCnt[RELEASE]++;
@@ -189,18 +192,25 @@ public class ClientHandler {
 
 		replyCnt ++;
 		if (replyCnt == QUORUM[clientID - 1].length) {
-			replyCnt = 0;
-			failedFlg = false;	// Trust me, this is correct!
-			System.out.println("Start to send WRITE to server!!!!!!!");
-			logInfo(currentRequest.getSenderID(), System.currentTimeMillis() - currentRequest.getTimeStamp());
-			sendRequest2Server(currentRequest);
-			System.out.println("Finish sending WRITE to server!!!!!!!");
-			for (int targetID : QUORUM[clientID - 1]) {
-				msgExCntTotal++;
-				msgExCnt[RELEASE]++;
-				sendMsg2Client("release", targetID);
-				System.out.println("<RELEASE> has been sent to client <" + targetID + "> in the QUORUM!!!!!!!!!!!!");
+			lock.lock();
+			cond.signal();
+			try {
+				replyCnt = 0;
+				failedFlg = false;	// Trust me, this is correct!
+				System.out.println("Enter CRITICAL SECTION!!!!!!!");
+				logInfo(currentRequest.getSenderID(), System.currentTimeMillis() - currentRequest.getTimeStamp());
+				sendRequest2Server(currentRequest);
+				System.out.println("Leave CRITICAL SECTION!!!!!!!");
+				for (int targetID : QUORUM[clientID - 1]) {
+					msgExCntTotal++;
+					msgExCnt[RELEASE]++;
+					sendMsg2Client("release", targetID);
+					System.out.println("<RELEASE> has been sent to client <" + targetID + "> in the QUORUM!!!!!!!!!!!!");
+				}				
+			} finally {
+				lock.unlock();
 			}
+
 		}
 	}
 	
@@ -212,7 +222,7 @@ public class ClientHandler {
 		failedFlg = true;
 		while (inquireRecvQ.isEmpty() == false) {
 			msgExCntTotal++;
-			msgExCnt[YIELD]++;
+			msgExCnt[FAILED]++;
 			int targetID = inquireRecvQ.take().getSenderID();
 			sendMsg2Client("yield", targetID);
 			replyCnt --;
@@ -293,10 +303,10 @@ public class ClientHandler {
 					try {
 						replyCnt = 0;
 						failedFlg = false;	// Trust me, this is correct!
-						System.out.println("Start to send WRITE to server!!!!!!!");
+						System.out.println("Enter CRITICAL SECTION!!!!!!!");
 						logInfo(currentRequest.getSenderID(), System.currentTimeMillis() - currentRequest.getTimeStamp());
 						sendRequest2Server(currentRequest);
-						System.out.println("Finish sending WRITE to server!!!!!!!");
+						System.out.println("LEAVE CRITICAL SECTION!!!!!!!");
 						for (int targetID : QUORUM[clientID - 1]) {
 							msgExCntTotal++;
 							msgExCnt[RELEASE]++;
