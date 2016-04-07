@@ -54,6 +54,20 @@ public class Client {
 			terminateThread.start();
 					
 			ClientHandler clientHandler = new ClientHandler();	// For synchronization
+			System.out.println("New handler is created!");
+			
+			Thread reqGenerateThread = new Thread(new Runnable() {
+				public void run() {
+					try {
+						Thread.sleep(100);
+						clientHandler.reqGenerate(clientID);
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+				}
+			});
+			reqGenerateThread.start();
 			
 			while (listening) {
 				Socket inSocket = listenSocket.accept();
