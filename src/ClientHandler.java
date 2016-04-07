@@ -39,7 +39,8 @@ public class ClientHandler {
 	public volatile boolean inquireSendFlg = false;
 	public volatile boolean failedFlg = false;
 	
-	public volatile int[] msgExCnt = {0, 0, 0, 0, 0, 0};
+	public volatile int[] msgSendCnt = {0, 0, 0, 0, 0, 0};
+	public volatile int[] msgRecvCnt = {0, 0, 0, 0, 0, 0};
 	public volatile int msgExCntTotal = 0;
 	
 	private Lock lock = new ReentrantLock();
@@ -124,7 +125,7 @@ public class ClientHandler {
 	public void requestHandler (Message msgIn, int clientID) {
 		// Routine count
 		msgExCntTotal++;
-		msgExCnt[REQUEST]++;
+		msgRecvCnt[REQUEST]++;
 		
 		if (state == UNLOCKED) {	// waitingQ is empty & current request is null
 			state = LOCKED;
@@ -132,6 +133,8 @@ public class ClientHandler {
 			quorumRecvCnt[msgIn.getSenderID() - 1] ++;
 			if (currentRequest.getSenderID() == clientID) {	// Don't send reply to myself, just replyCnt++
 				replyCnt ++;
+				msgExCntTotal++;
+				msgRecvCnt[REPLY]++;	// Same as receiving a reply
 				if (replyCnt == QUORUM[clientID - 1].length) {
 					lock.lock();
 					cond.signal();	// wake another awaiting lock up
@@ -144,7 +147,7 @@ public class ClientHandler {
 						System.out.println("Leave CRITICAL SECTION!!!!!!!");
 						for (int targetID : QUORUM[clientID - 1]) {
 							msgExCntTotal++;
-							msgExCnt[RELEASE]++;
+							msgSendCnt[RELEASE]++;
 							sendMsg2Client("release", targetID);
 							System.out.println("<RELEASE> has been sent to client <" + targetID + "> in the QUORUM!!!!!!!!!!!!");
 						}						
@@ -154,7 +157,7 @@ public class ClientHandler {
 				}
 			} else {
 				msgExCntTotal++;
-				msgExCnt[REPLY]++;
+				msgSendCnt[REPLY]++;
 				sendMsg2Client("reply", currentRequest.getSenderID());
 				System.out.println("Send <REPLY> to client <" + currentRequest.getSenderID() + ">!!!!!!!!!!!!!!!!");
 			}
@@ -166,7 +169,7 @@ public class ClientHandler {
 					inqWaitingQ.put(msgIn); 	// Store those coming request with HP than current request, only send reply to the top of them, and failed to the other 
 					if (inquireSendFlg == false) {
 						msgExCntTotal++;
-						msgExCnt[INQUIRE]++;
+						msgSendCnt[INQUIRE]++;
 						inquireSendFlg = true;
 						sendMsg2Client("inquire", currentRequest.getSenderID());
 						System.out.println("Send <INQUIRE> to client <" + currentRequest.getSenderID() + ">, current inquireSendFlg is <" + inquireSendFlg + ">");												
@@ -175,7 +178,7 @@ public class ClientHandler {
 					}
 				} else {
 					msgExCntTotal++;
-					msgExCnt[FAILED]++;
+					msgSendCnt[FAILED]++;
 					sendMsg2Client("failed", msgIn.getSenderID());
 					System.out.println("Send <FAILED> to client <" + msgIn.getSenderID() + ">");
 				}						
@@ -188,7 +191,7 @@ public class ClientHandler {
 	public void replyHandler (int clientID) {
 		// Routine count
 		msgExCntTotal++;
-		msgExCnt[REPLY]++;
+		msgRecvCnt[REPLY]++;
 
 		replyCnt ++;
 		if (replyCnt == QUORUM[clientID - 1].length) {
@@ -203,7 +206,7 @@ public class ClientHandler {
 				System.out.println("Leave CRITICAL SECTION!!!!!!!");
 				for (int targetID : QUORUM[clientID - 1]) {
 					msgExCntTotal++;
-					msgExCnt[RELEASE]++;
+					msgSendCnt[RELEASE]++;
 					sendMsg2Client("release", targetID);
 					System.out.println("<RELEASE> has been sent to client <" + targetID + "> in the QUORUM!!!!!!!!!!!!");
 				}				
@@ -217,12 +220,12 @@ public class ClientHandler {
 	public void failedHandler () throws InterruptedException {
 		// Routine count
 		msgExCntTotal++;
-		msgExCnt[FAILED]++;
+		msgRecvCnt[FAILED]++;
 		
 		failedFlg = true;
 		while (inquireRecvQ.isEmpty() == false) {
 			msgExCntTotal++;
-			msgExCnt[FAILED]++;
+			msgSendCnt[YIELD]++;
 			int targetID = inquireRecvQ.take().getSenderID();
 			sendMsg2Client("yield", targetID);
 			replyCnt --;
@@ -237,11 +240,11 @@ public class ClientHandler {
 	public void inquireHandler (Message msgIn) {
 		// Routine count
 		msgExCntTotal++;
-		msgExCnt[INQUIRE]++;
+		msgRecvCnt[INQUIRE]++;
 
 		if (failedFlg == true) {
 			msgExCntTotal++;
-			msgExCnt[YIELD]++;
+			msgSendCnt[YIELD]++;
 			sendMsg2Client("yield", msgIn.getSenderID());
 			replyCnt --;
 			System.out.println("Send <YIELD> to cliend <" + msgIn.getSenderID() + "> due to existing FAILED received!");
@@ -250,23 +253,48 @@ public class ClientHandler {
 		}
 	}
 	
-	public void yieldHandler () throws InterruptedException {
+	public void yieldHandler (int clientID) throws InterruptedException {
 		// Routine count
 		msgExCntTotal++;
-		msgExCnt[YIELD]++;
+		msgRecvCnt[YIELD]++;
 
 		// Also need to send failed to those in the inquireSendQ
 		inquireSendFlg = false;
 		reqWaitingQ.put(currentRequest);
 		currentRequest = reqWaitingQ.take();
+		
 		msgExCntTotal++;
-		msgExCnt[REPLY]++;
-		sendMsg2Client("reply", currentRequest.getSenderID());	// Could use the same thing in the requestHandler -> reply++ directly
+		msgSendCnt[REPLY]++;
+		if (currentRequest.getSenderID() == clientID) {	// Don't send reply to myself, just replyCnt++
+			replyCnt ++;
+			if (replyCnt == QUORUM[clientID - 1].length) {
+				lock.lock();
+				cond.signal();
+				try {
+					replyCnt = 0;
+					failedFlg = false;	// Trust me, this is correct!
+					System.out.println("Enter CRITICAL SECTION!!!!!!!");
+					logInfo(currentRequest.getSenderID(), System.currentTimeMillis() - currentRequest.getTimeStamp());
+					sendRequest2Server(currentRequest);
+					System.out.println("LEAVE CRITICAL SECTION!!!!!!!");
+					for (int targetID : QUORUM[clientID - 1]) {
+						msgExCntTotal++;
+						msgSendCnt[RELEASE]++;
+						sendMsg2Client("release", targetID);
+						System.out.println("<RELEASE> has been sent to client <" + targetID + "> in the QUORUM!!!!!!!!!!!!");
+					}						
+				} finally {
+					lock.unlock();
+				}
+			}
+		} else {
+			sendMsg2Client("reply", currentRequest.getSenderID());
+		}
 		System.out.println("Send <REPLY> to new HP client <" + currentRequest.getSenderID() + ">");
 		inqWaitingQ.remove();
 		while (inqWaitingQ.isEmpty() == false) {
 			msgExCntTotal++;
-			msgExCnt[FAILED]++;
+			msgSendCnt[FAILED]++;
 			sendMsg2Client("failed", inqWaitingQ.take().getSenderID());
 			System.out.println("Send <FAILED> to LP client in the same inqWaitingQ of new current request");
 		}
@@ -275,14 +303,14 @@ public class ClientHandler {
 	public void releaseHandler (int clientID) throws InterruptedException {
 		// Routine Check
 		msgExCntTotal++;
-		msgExCnt[RELEASE]++;
+		msgRecvCnt[RELEASE]++;
 
 		if (inquireSendFlg == true) {
 			inquireSendFlg = false;
 			inqWaitingQ.remove();
 			while (inqWaitingQ.isEmpty() == false) {
 				msgExCntTotal++;
-				msgExCnt[FAILED]++;
+				msgSendCnt[FAILED]++;
 				sendMsg2Client("failed", inqWaitingQ.take().getSenderID());
 				System.out.println("Send <FAILED> to LP client in the same inqWaitingQ of new current request");
 			}
@@ -296,6 +324,8 @@ public class ClientHandler {
 			currentRequest = reqWaitingQ.take();
 			state = LOCKED;	// Unchanged
 			if (currentRequest.getSenderID() == clientID) {	// Don't send reply to myself, just replyCnt++
+				msgExCntTotal++;
+				msgRecvCnt[REPLY]++;
 				replyCnt ++;
 				if (replyCnt == QUORUM[clientID - 1].length) {
 					lock.lock();
@@ -309,7 +339,7 @@ public class ClientHandler {
 						System.out.println("LEAVE CRITICAL SECTION!!!!!!!");
 						for (int targetID : QUORUM[clientID - 1]) {
 							msgExCntTotal++;
-							msgExCnt[RELEASE]++;
+							msgSendCnt[RELEASE]++;
 							sendMsg2Client("release", targetID);
 							System.out.println("<RELEASE> has been sent to client <" + targetID + "> in the QUORUM!!!!!!!!!!!!");
 						}						
@@ -319,7 +349,7 @@ public class ClientHandler {
 				}
 			} else {
 				msgExCntTotal++;
-				msgExCnt[REPLY]++;
+				msgSendCnt[REPLY]++;
 				sendMsg2Client("reply", currentRequest.getSenderID());
 			}
 			System.out.println("Send reply to new top currentRequest <" + currentRequest.getSenderID() + ">");
@@ -412,12 +442,20 @@ public class ClientHandler {
 	}
 	
 	public void logInfo (int clientID, long timeElapse) {
-		String numOfMsg = "Request <" + msgExCnt[REQUEST] + ">, " + "Reply <" + msgExCnt[REPLY] + ">, " + "Release <" + msgExCnt[RELEASE] + ">, " + "Inquire <" + msgExCnt[INQUIRE] + ">, " + "Failed <" + msgExCnt[FAILED] + ">, " + "Yield <" + msgExCnt[YIELD] + ">. ";
+		String numOfMsgSend = "SEND - Request <" + msgSendCnt[REQUEST] + ">, " + "Reply <" + msgSendCnt[REPLY] + ">, " + "Release <" + msgSendCnt[RELEASE] + ">, " + "Inquire <" + msgSendCnt[INQUIRE] + ">, " + "Failed <" + msgSendCnt[FAILED] + ">, " + "Yield <" + msgSendCnt[YIELD] + ">. ";
+		String numOfMsgRecv = "RECV - Request <" + msgRecvCnt[REQUEST] + ">, " + "Reply <" + msgRecvCnt[REPLY] + ">, " + "Release <" + msgRecvCnt[RELEASE] + ">, " + "Inquire <" + msgRecvCnt[INQUIRE] + ">, " + "Failed <" + msgRecvCnt[FAILED] + ">, " + "Yield <" + msgRecvCnt[YIELD] + ">. ";
 		String time = "Time elapsed is <" + timeElapse + ">";
-		for (int i = 0; i < 6; i++) 
-			msgExCnt[i] = 0;
-		write1Line2File(clientID, numOfMsg);
+		for (int i = 0; i < 6; i++) {
+			msgSendCnt[i] = 0;
+			msgRecvCnt[i] = 0;
+		}
+		write1Line2File(clientID, numOfMsgSend);
+		write1Line2File(clientID, numOfMsgRecv);
 		write1Line2File(clientID, time);
 		write1Line2File(clientID, "----------------------------------------------------------------------------------------------------------");
+	}
+	
+	public int getTotalExMsg () {
+		return msgExCntTotal;
 	}
 }

@@ -89,12 +89,12 @@ public class Client {
 							} else if (msgIn.getMsgType().equals("inquire")) {	// From those who send you REPLY
 								clientHandler.inquireHandler(msgIn);
 							} else if (msgIn.getMsgType().equals("yield")) {
-								clientHandler.yieldHandler();
+								clientHandler.yieldHandler(clientID);
 							} else if (msgIn.getMsgType().equals("release")) {
 								clientHandler.releaseHandler(clientID);
 							} else if (msgIn.getMsgType().equals("terminate")) {
 								System.out.println("Receive <terminate> from server!!!!!!!!");
-								write1Line2File(clientID, "Total # of message exchanged <" + 0000);
+								write1Line2File(clientID, "Total # of message exchanged <" + clientHandler.msgExCntTotal + ">");
 								listeningFlg = false;
 							}
 							
