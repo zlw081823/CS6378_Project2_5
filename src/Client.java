@@ -12,6 +12,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public class Client {
 
 	public static volatile boolean listeningFlg = true;
+	public static volatile boolean listening = true;
 	
 	public static void main(String[] args) {
 		// Get clientID first
@@ -34,7 +35,7 @@ public class Client {
 		// Start to listen to incoming sockets
 		try {
 			ServerSocket listenSocket = new ServerSocket(6666);
-			boolean listening = true;
+			//boolean listening = true;
 						
 			Thread terminateThread = new Thread(new Runnable() {
 				public void run() {
@@ -42,6 +43,7 @@ public class Client {
 					try {
 						Thread.sleep(1000);
 						//listenSocket.close();
+						listening = false;
 						new Socket("dc" + clientID + ".utdallas.edu", 6666).close();
 					} catch (IOException e) {
 						System.out.println("Client <" + clientID + "> is closed!");						
@@ -111,12 +113,11 @@ public class Client {
 				});
 				inSocketHandlerThread.start();
 			}
-			
+			listenSocket.close();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		
-		System.out.println("Client <" + clientID + "> is closed!");
+		//System.out.println("Client <" + clientID + "> is closed!");
 	}
 
 	/**
