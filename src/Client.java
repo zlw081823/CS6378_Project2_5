@@ -49,9 +49,10 @@ public class Client {
 						System.out.println("Client <" + clientID + "> is closed!");						
 					} catch (InterruptedException e) {
 						e.printStackTrace();
-					} finally {
-						System.out.println("Client <" + clientID + "> is closed!");	
-					}
+					} 
+//					finally {
+//						System.out.println("Client <" + clientID + "> is closed!");	
+//					}
 				}
 			});
 			terminateThread.start();
@@ -79,11 +80,13 @@ public class Client {
 					Thread inSocketHandlerThread = new Thread(new Runnable() {
 						public void run() {
 							try {
+								long time = System.currentTimeMillis();
 								ObjectInputStream in = new ObjectInputStream(inSocket.getInputStream());
 								Message msgIn = (Message) in.readObject();
 								System.out.println("Receive a message: <" + msgIn.getMsgType() + ">, TS <" + msgIn.getTimeStamp() + ">, from client <" + msgIn.getSenderID() + ">");
 								in.close();
 								inSocket.close();
+								System.out.println("Time spend on setting up a socket is: <" + (System.currentTimeMillis() - time) + ">ms!!!");
 								
 								if (msgIn.getMsgType().equals("request")) {
 									clientHandler.requestHandler(msgIn, clientID);
@@ -118,12 +121,11 @@ public class Client {
 					break;
 				}
 			}
-			
+			listenSocket.close();
+			System.out.println("Client <" + clientID + "> is closed!");
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		
-		System.out.println("Client <" + clientID + "> is closed!");
 	}
 
 	/**
