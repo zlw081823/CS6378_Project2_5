@@ -44,9 +44,9 @@ public class Client {
 						Thread.sleep(1000);
 						//listenSocket.close();
 						shutdownRequest = true;
-						new Socket("dc" + clientID + "utdallas.edu", 6666).close();
-						System.out.println("Client <" + clientID + "> is closed!");						
-						System.exit(0);
+						new Socket("dc" + (clientID + 25) + "utdallas.edu", 6666).close();
+						//System.out.println("Client <" + clientID + "> is closed!");						
+						//System.exit(0);
 					} catch (IOException e) {
 						e.printStackTrace();
 					} catch (InterruptedException e) {
@@ -125,7 +125,7 @@ public class Client {
 				}
 			}
 			listenSocket.close();
-			//System.out.println("Client <" + clientID + "> is closed!");
+			System.out.println("Client <" + clientID + "> is closed!");
 			//System.exit(0);
 		} catch (IOException e) {
 			e.printStackTrace();
