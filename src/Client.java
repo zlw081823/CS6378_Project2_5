@@ -45,8 +45,10 @@ public class Client {
 						//listenSocket.close();
 						shutdownRequest = true;
 						new Socket("dc" + clientID + "utdallas.edu", 6666).close();
-					} catch (IOException e) {
 						System.out.println("Client <" + clientID + "> is closed!");						
+						System.exit(0);
+					} catch (IOException e) {
+						e.printStackTrace();
 					} catch (InterruptedException e) {
 						e.printStackTrace();
 					} 
@@ -104,7 +106,7 @@ public class Client {
 								} else if (msgIn.getMsgType().equals("terminate")) {
 									System.out.println("Receive <terminate> from server!!!!!!!!");
 									write1Line2File(clientID, "Total # of message exchanged <" + clientHandler.msgExCntTotal + ">");
-									Thread.sleep(100);
+									Thread.sleep(1000);
 									listeningFlg = false;
 								}
 								
@@ -123,8 +125,8 @@ public class Client {
 				}
 			}
 			listenSocket.close();
-			System.out.println("Client <" + clientID + "> is closed!");
-			System.exit(0);
+			//System.out.println("Client <" + clientID + "> is closed!");
+			//System.exit(0);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
