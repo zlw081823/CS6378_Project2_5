@@ -328,6 +328,8 @@ public class ClientHandler {
 		msgExCntTotal++;
 		msgRecvCnt[RELEASE]++;
 
+		quorumRecvCnt[clientID - 1] --;	// Indicate the finish of a previous REQUEST
+		
 		if (inquireSendFlg == true) {
 			inquireSendFlg = false;
 			inqWaitingQ.remove();
