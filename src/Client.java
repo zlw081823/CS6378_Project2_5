@@ -95,6 +95,7 @@ public class Client {
 							} else if (msgIn.getMsgType().equals("terminate")) {
 								System.out.println("Receive <terminate> from server!!!!!!!!");
 								write1Line2File(clientID, "Total # of message exchanged <" + clientHandler.msgExCntTotal + ">");
+								Thread.sleep(100);
 								listeningFlg = false;
 							}
 							
