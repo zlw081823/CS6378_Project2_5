@@ -46,7 +46,7 @@ public class Client {
 						listening = false;
 						new Socket("dc" + clientID + ".utdallas.edu", 6666).close();
 					} catch (IOException e) {
-						System.out.println("Client <" + clientID + "> is closed!");						
+						//System.out.println("Client <" + clientID + "> is closed!");						
 					} catch (InterruptedException e) {
 						e.printStackTrace();
 					} finally {
@@ -74,44 +74,48 @@ public class Client {
 			
 			while (listening) {
 				Socket inSocket = listenSocket.accept();
-				Thread inSocketHandlerThread = new Thread(new Runnable() {
-					public void run() {
-						try {
-							ObjectInputStream in = new ObjectInputStream(inSocket.getInputStream());
-							Message msgIn = (Message) in.readObject();
-							System.out.println("Receive a message: <" + msgIn.getMsgType() + ">, TS <" + msgIn.getTimeStamp() + ">, from client <" + msgIn.getSenderID() + ">");
-							in.close();
-							inSocket.close();
-							
-							if (msgIn.getMsgType().equals("request")) {
-								clientHandler.requestHandler(msgIn, clientID);
-							} else if (msgIn.getMsgType().equals("reply")) {
-								clientHandler.replyHandler(clientID);
-							} else if (msgIn.getMsgType().equals("failed")) {
-								clientHandler.failedHandler(clientID);
-							} else if (msgIn.getMsgType().equals("inquire")) {	// From those who send you REPLY
-								clientHandler.inquireHandler(msgIn);
-							} else if (msgIn.getMsgType().equals("yield")) {
-								clientHandler.yieldHandler(clientID);
-							} else if (msgIn.getMsgType().equals("release")) {
-								clientHandler.releaseHandler(clientID);
-							} else if (msgIn.getMsgType().equals("terminate")) {
-								System.out.println("Receive <terminate> from server!!!!!!!!");
-								write1Line2File(clientID, "Total # of message exchanged <" + clientHandler.msgExCntTotal + ">");
-								Thread.sleep(100);
-								listeningFlg = false;
-							}
-							
-						} catch (IOException e) {
-							e.printStackTrace();
-						} catch (ClassNotFoundException e) {
-							e.printStackTrace();
-						} catch (InterruptedException e) {
-							e.printStackTrace();
-						}	
-					}
-				});
-				inSocketHandlerThread.start();
+				if (listening) {
+					Thread inSocketHandlerThread = new Thread(new Runnable() {
+						public void run() {
+							try {
+								ObjectInputStream in = new ObjectInputStream(inSocket.getInputStream());
+								Message msgIn = (Message) in.readObject();
+								System.out.println("Receive a message: <" + msgIn.getMsgType() + ">, TS <" + msgIn.getTimeStamp() + ">, from client <" + msgIn.getSenderID() + ">");
+								in.close();
+								inSocket.close();
+								
+								if (msgIn.getMsgType().equals("request")) {
+									clientHandler.requestHandler(msgIn, clientID);
+								} else if (msgIn.getMsgType().equals("reply")) {
+									clientHandler.replyHandler(clientID);
+								} else if (msgIn.getMsgType().equals("failed")) {
+									clientHandler.failedHandler(clientID);
+								} else if (msgIn.getMsgType().equals("inquire")) {	// From those who send you REPLY
+									clientHandler.inquireHandler(msgIn);
+								} else if (msgIn.getMsgType().equals("yield")) {
+									clientHandler.yieldHandler(clientID);
+								} else if (msgIn.getMsgType().equals("release")) {
+									clientHandler.releaseHandler(clientID);
+								} else if (msgIn.getMsgType().equals("terminate")) {
+									System.out.println("Receive <terminate> from server!!!!!!!!");
+									write1Line2File(clientID, "Total # of message exchanged <" + clientHandler.msgExCntTotal + ">");
+									Thread.sleep(100);
+									listeningFlg = false;
+								}
+								
+							} catch (IOException e) {
+								e.printStackTrace();
+							} catch (ClassNotFoundException e) {
+								e.printStackTrace();
+							} catch (InterruptedException e) {
+								e.printStackTrace();
+							}	
+						}
+					});
+					inSocketHandlerThread.start();				
+				} else {
+					break;
+				}
 			}
 			listenSocket.close();
 		} catch (IOException e) {
