@@ -160,6 +160,9 @@ public class ClientHandler {
 							System.out.println("<RELEASE> has been sent to client <" + targetID + "> in the QUORUM!!!!!!!!!!!!");
 						}						
 					} finally {
+						System.out.println("After sending RELEASE, current state<" + state + ">, replyCnt<" + replyCnt + ">, failedFlg<" +failedFlg + ">, inquireFlg<" + inquireSendFlg + ">...");
+						System.out.println("REQUEST waiting queue<" + reqWaitingQ.size() + ">, INQUIRE waiting queue<" + inqWaitingQ.size() + ">...");
+						System.out.println("Requests from quorum member: 1<" + quorumRecvCnt[0] + ">, 2<" + quorumRecvCnt[1] + ">, 3<" + quorumRecvCnt[2] + ">, 4<" + quorumRecvCnt[3] + ">, 5<" + quorumRecvCnt[4] + ">, 6<" + quorumRecvCnt[5] + ">, 7<" + quorumRecvCnt[6] + ">..,");
 						lock.unlock();
 					}
 				}
@@ -222,6 +225,9 @@ public class ClientHandler {
 					System.out.println("<RELEASE> has been sent to client <" + targetID + "> in the QUORUM!!!!!!!!!!!!");
 				}				
 			} finally {
+				System.out.println("After sending RELEASE, current state<" + state + ">, replyCnt<" + replyCnt + ">, failedFlg<" +failedFlg + ">, inquireFlg<" + inquireSendFlg + ">...");
+				System.out.println("REQUEST waiting queue<" + reqWaitingQ.size() + ">, INQUIRE waiting queue<" + inqWaitingQ.size() + ">...");
+				System.out.println("Requests from quorum member: 1<" + quorumRecvCnt[0] + ">, 2<" + quorumRecvCnt[1] + ">, 3<" + quorumRecvCnt[2] + ">, 4<" + quorumRecvCnt[3] + ">, 5<" + quorumRecvCnt[4] + ">, 6<" + quorumRecvCnt[5] + ">, 7<" + quorumRecvCnt[6] + ">..,");
 				lock.unlock();
 			}
 
@@ -298,6 +304,9 @@ public class ClientHandler {
 						System.out.println("<RELEASE> has been sent to client <" + targetID + "> in the QUORUM!!!!!!!!!!!!");
 					}						
 				} finally {
+					System.out.println("After sending RELEASE, current state<" + state + ">, replyCnt<" + replyCnt + ">, failedFlg<" +failedFlg + ">, inquireFlg<" + inquireSendFlg + ">...");
+					System.out.println("REQUEST waiting queue<" + reqWaitingQ.size() + ">, INQUIRE waiting queue<" + inqWaitingQ.size() + ">...");
+					System.out.println("Requests from quorum member: 1<" + quorumRecvCnt[0] + ">, 2<" + quorumRecvCnt[1] + ">, 3<" + quorumRecvCnt[2] + ">, 4<" + quorumRecvCnt[3] + ">, 5<" + quorumRecvCnt[4] + ">, 6<" + quorumRecvCnt[5] + ">, 7<" + quorumRecvCnt[6] + ">..,");
 					lock.unlock();
 				}
 			}
@@ -361,6 +370,9 @@ public class ClientHandler {
 							System.out.println("<RELEASE> has been sent to client <" + targetID + "> in the QUORUM!!!!!!!!!!!!");
 						}						
 					} finally {
+						System.out.println("After sending RELEASE, current state<" + state + ">, replyCnt<" + replyCnt + ">, failedFlg<" +failedFlg + ">, inquireFlg<" + inquireSendFlg + ">...");
+						System.out.println("REQUEST waiting queue<" + reqWaitingQ.size() + ">, INQUIRE waiting queue<" + inqWaitingQ.size() + ">...");
+						System.out.println("Requests from quorum member: 1<" + quorumRecvCnt[0] + ">, 2<" + quorumRecvCnt[1] + ">, 3<" + quorumRecvCnt[2] + ">, 4<" + quorumRecvCnt[3] + ">, 5<" + quorumRecvCnt[4] + ">, 6<" + quorumRecvCnt[5] + ">, 7<" + quorumRecvCnt[6] + ">..,");
 						lock.unlock();
 					}
 				}
