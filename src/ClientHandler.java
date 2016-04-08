@@ -28,8 +28,8 @@ public class ClientHandler {
 	final static int YIELD = 5;
 
 	public volatile PriorityBlockingQueue<Message> reqWaitingQ = new PriorityBlockingQueue<>(300);
-	public volatile PriorityBlockingQueue<Message> inquireRecvQ = new PriorityBlockingQueue<>(100);
-	public volatile PriorityBlockingQueue<Message> inqWaitingQ = new PriorityBlockingQueue<>(100);
+	public volatile PriorityBlockingQueue<Message> inquireRecvQ = new PriorityBlockingQueue<>(100);	// inquires I received
+	public volatile PriorityBlockingQueue<Message> inqWaitingQ = new PriorityBlockingQueue<>(100); // HP requests who are waiting for me to reply
 
 	public volatile Message currentRequest = null;
 	
@@ -127,7 +127,7 @@ public class ClientHandler {
 		}	
 	}
 	
-	public void requestHandler (Message msgIn, int clientID) {
+	public void requestHandler (Message msgIn, int clientID) throws InterruptedException {
 		// Routine count
 		msgExCntTotal++;
 		msgRecvCnt[REQUEST]++;
@@ -179,16 +179,30 @@ public class ClientHandler {
 			if (quorumRecvCnt[msgIn.getSenderID() - 1] == 0) { // no request sent from this same client before
 				quorumRecvCnt[msgIn.getSenderID() - 1] ++;
 				if (msgIn.compareTo(currentRequest) == -1 && msgIn.compareTo(reqWaitingQ.peek()) == 0) {	// HP than current request and the HIGEST in the waiting queue
-					inqWaitingQ.put(msgIn); 	// Store those coming request with HP than current request, only send reply to the top of them, and failed to the other 
-					if (inquireSendFlg == false) {
-						msgExCntTotal++;
-						msgSendCnt[INQUIRE]++;
-						inquireSendFlg = true;
-						sendMsg2Client("inquire", currentRequest.getSenderID());
-						System.out.println("Send <INQUIRE> to client <" + currentRequest.getSenderID() + ">, current inquireSendFlg is <" + inquireSendFlg + ">");												
-					} else {
-						System.out.println("Already sent <INQUIRE> before!");
+					if (currentRequest.getSenderID() == clientID) {	// current request is myself! I need to handle INQUIRE from myself & handle YIELD from myself
+						if (failedFlg == true) {	// Same as receiving a YIELD!
+							reqWaitingQ.put(currentRequest);	// Put myself (LP) back in the Q
+							currentRequest = reqWaitingQ.take();	// Take out HP one from the Q
+							msgExCntTotal++;
+							msgSendCnt[REPLY]++;
+							sendMsg2Client("reply", currentRequest.getSenderID());
+							System.out.println("Send <REPLY> to client <" + currentRequest.getSenderID() + ">");																		
+						} else {
+							inqWaitingQ.put(msgIn); 	// Store those coming request with HP than current request, only send reply to the top of them, and failed to the other 
+						}
+					} else {	// current request is other clients in my quorum!
+						inqWaitingQ.put(msgIn); 	// Store those coming request with HP than current request, only send reply to the top of them, and failed to the other 
+						if (inquireSendFlg == false) {
+							msgExCntTotal++;
+							msgSendCnt[INQUIRE]++;
+							inquireSendFlg = true;
+							sendMsg2Client("inquire", currentRequest.getSenderID());
+							System.out.println("Send <INQUIRE> to client <" + currentRequest.getSenderID() + ">, current inquireSendFlg is <" + inquireSendFlg + ">");												
+						} else {
+							System.out.println("Already sent <INQUIRE> before!");
+						}						
 					}
+					
 				} else {
 					msgExCntTotal++;
 					msgSendCnt[FAILED]++;
@@ -267,7 +281,7 @@ public class ClientHandler {
 			msgSendCnt[YIELD]++;
 			sendMsg2Client("yield", msgIn.getSenderID());
 			replyCnt --;
-			System.out.println("Send <YIELD> to client <" + msgIn.getSenderID() + "> due to existing FAILED received!");
+ 			System.out.println("Send <YIELD> to client <" + msgIn.getSenderID() + "> due to existing FAILED received!");
 		} else {
 			inquireRecvQ.put(msgIn);	// All these are INQUIRE
 		}
@@ -283,8 +297,6 @@ public class ClientHandler {
 		reqWaitingQ.put(currentRequest);
 		currentRequest = reqWaitingQ.take();
 		
-		msgExCntTotal++;
-		msgSendCnt[REPLY]++;
 		if (currentRequest.getSenderID() == clientID) {	// Don't send reply to myself, just replyCnt++
 			replyCnt ++;
 			if (replyCnt == QUORUM[clientID - 1].length) {
@@ -346,7 +358,7 @@ public class ClientHandler {
 
 		quorumRecvCnt[currentRequest.getSenderID() - 1] --;	// Indicate the finish of a previous REQUEST ( Before refresh current request)
 		
-		if (inquireSendFlg == true) {
+		if (inquireSendFlg == true) {	// INQUIRE on behalf of other HP clients
 			inquireSendFlg = false;
 			inqWaitingQ.remove();
 			while (inqWaitingQ.isEmpty() == false) {
@@ -357,61 +369,77 @@ public class ClientHandler {
 			}
 		}
 		
-		if (reqWaitingQ.isEmpty()) {
-			currentRequest = null;
-			state = UNLOCKED;
-			System.out.println("No more waiting requests! Current state is changed to <" + state + ">!!!!!!!!!!!!!!!!!!!!!!s");
-		} else {
+		if (currentRequest.getSenderID() == clientID && inqWaitingQ.isEmpty() == false) {	// When I finished CS and 
 			currentRequest = reqWaitingQ.take();
-			state = LOCKED;	// Unchanged
-			if (currentRequest.getSenderID() == clientID) {	// Don't send reply to myself, just replyCnt++
-//				msgExCntTotal++;
-//				msgRecvCnt[REPLY]++;
-				replyCnt ++;
-				if (replyCnt == QUORUM[clientID - 1].length) {
-					lock.lock();
-					cond.signal();
-					try {
-						replyCnt = 0;
-						failedFlg = false;	// Trust me, this is correct!
-						System.out.println("Enter CRITICAL SECTION!!!!!!!");
-						long time  = System.currentTimeMillis();
-						logInfo(currentRequest.getSenderID(), System.currentTimeMillis() - currentRequest.getTimeStamp());
-						//System.out.println("Time spend to log the info into file: <" + (System.currentTimeMillis() - time) + ">ms!!!!");
-						time = System.currentTimeMillis();
-						sendRequest2Server(currentRequest);
-						System.out.println("Leave CRITICAL SECTION!!!!!!! Total time spent in CS: <" + (System.currentTimeMillis() - time) + ">ms!!!");
-						for (int targetID : QUORUM[clientID - 1]) {
-							msgExCntTotal++;
-							msgSendCnt[RELEASE]++;
-							sendMsg2Client("release", targetID);
-							System.out.println("<RELEASE> has been sent to client <" + targetID + "> in the QUORUM!!!!!!!!!!!!");
-						}						
-					} finally {
-						System.out.println("After sending RELEASE, current state<" + state + ">, replyCnt<" + replyCnt + ">, failedFlg<" +failedFlg + ">, inquireFlg<" + inquireSendFlg + ">...");
-						System.out.println("REQUEST waiting queue<" + reqWaitingQ.size() + ">, INQUIRE waiting queue<" + inqWaitingQ.size() + ">...");
-						System.out.println("Requests from quorum member: 1<" + quorumRecvCnt[0] + ">, 2<" + quorumRecvCnt[1] + ">, 3<" + quorumRecvCnt[2] + ">, 4<" + quorumRecvCnt[3] + ">, 5<" + quorumRecvCnt[4] + ">, 6<" + quorumRecvCnt[5] + ">, 7<" + quorumRecvCnt[6] + ">..,");
-						lock.unlock();
+			inqWaitingQ.remove(currentRequest);
+			msgExCntTotal++;
+			msgSendCnt[REPLY]++;
+			sendMsg2Client("reply", currentRequest.getSenderID());
+			System.out.println("Send <REPLY> to new HP client <" + currentRequest.getSenderID() + ">");
+			while (inqWaitingQ.isEmpty() == false) {
+				msgExCntTotal++;
+				msgSendCnt[FAILED]++;
+				sendMsg2Client("failed", inqWaitingQ.take().getSenderID());
+				System.out.println("Send <FAILED> to LP client in the same inqWaitingQ of new current request");				 
+			}
+		} else {
+			if (reqWaitingQ.isEmpty()) {
+				currentRequest = null;
+				state = UNLOCKED;
+				System.out.println("No more waiting requests! Current state is changed to <" + state + ">!!!!!!!!!!!!!!!!!!!!!!s");
+			} else {
+				currentRequest = reqWaitingQ.take();
+				state = LOCKED;	// Unchanged
+				if (currentRequest.getSenderID() == clientID) {	// Don't send reply to myself, just replyCnt++
+//					msgExCntTotal++;
+//					msgRecvCnt[REPLY]++;
+					replyCnt ++;
+					if (replyCnt == QUORUM[clientID - 1].length) {
+						lock.lock();
+						cond.signal();
+						try {
+							replyCnt = 0;
+							failedFlg = false;	// Trust me, this is correct!
+							System.out.println("Enter CRITICAL SECTION!!!!!!!");
+							long time  = System.currentTimeMillis();
+							logInfo(currentRequest.getSenderID(), System.currentTimeMillis() - currentRequest.getTimeStamp());
+							//System.out.println("Time spend to log the info into file: <" + (System.currentTimeMillis() - time) + ">ms!!!!");
+							time = System.currentTimeMillis();
+							sendRequest2Server(currentRequest);
+							System.out.println("Leave CRITICAL SECTION!!!!!!! Total time spent in CS: <" + (System.currentTimeMillis() - time) + ">ms!!!");
+							for (int targetID : QUORUM[clientID - 1]) {
+								msgExCntTotal++;
+								msgSendCnt[RELEASE]++;
+								sendMsg2Client("release", targetID);
+								System.out.println("<RELEASE> has been sent to client <" + targetID + "> in the QUORUM!!!!!!!!!!!!");
+							}						
+						} finally {
+							System.out.println("After sending RELEASE, current state<" + state + ">, replyCnt<" + replyCnt + ">, failedFlg<" +failedFlg + ">, inquireFlg<" + inquireSendFlg + ">...");
+							System.out.println("REQUEST waiting queue<" + reqWaitingQ.size() + ">, INQUIRE waiting queue<" + inqWaitingQ.size() + ">...");
+							System.out.println("Requests from quorum member: 1<" + quorumRecvCnt[0] + ">, 2<" + quorumRecvCnt[1] + ">, 3<" + quorumRecvCnt[2] + ">, 4<" + quorumRecvCnt[3] + ">, 5<" + quorumRecvCnt[4] + ">, 6<" + quorumRecvCnt[5] + ">, 7<" + quorumRecvCnt[6] + ">..,");
+							lock.unlock();
+						}
+					} else {
+						if (failedFlg == true) {	// failed received when I already sent reply to other clients
+							while (inquireRecvQ.isEmpty() == false) {
+								msgExCntTotal++;
+								msgSendCnt[YIELD]++;
+								int targetID = inquireRecvQ.take().getSenderID();
+								sendMsg2Client("yield", targetID);
+								replyCnt --;
+								System.out.println("Send postponed <YIELD> to client <" + targetID + "> due to receiving <FAILED>!");
+							}			
+						}
 					}
 				} else {
-					if (failedFlg == true) {	// failed received when I already sent reply to other clients
-						while (inquireRecvQ.isEmpty() == false) {
-							msgExCntTotal++;
-							msgSendCnt[YIELD]++;
-							int targetID = inquireRecvQ.take().getSenderID();
-							sendMsg2Client("yield", targetID);
-							replyCnt --;
-							System.out.println("Send postponed <YIELD> to client <" + targetID + "> due to receiving <FAILED>!");
-						}			
-					}
+					msgExCntTotal++;
+					msgSendCnt[REPLY]++;
+					sendMsg2Client("reply", currentRequest.getSenderID());
 				}
-			} else {
-				msgExCntTotal++;
-				msgSendCnt[REPLY]++;
-				sendMsg2Client("reply", currentRequest.getSenderID());
+				System.out.println("Send reply to new top currentRequest <" + currentRequest.getSenderID() + ">");
 			}
-			System.out.println("Send reply to new top currentRequest <" + currentRequest.getSenderID() + ">");
 		}
+		
 	}
 	
 	/**
