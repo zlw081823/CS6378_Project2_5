@@ -160,6 +160,7 @@ public class ClientHandler {
 							sendMsg2Client("release", targetID);
 							System.out.println("<RELEASE> has been sent to client <" + targetID + "> in the QUORUM!!!!!!!!!!!!");
 						}	
+						inquireRecvQ.clear(); 	// Will this work?????
 						System.out.println("Time spend on SENDING RELEASE to all clients in the quorum: <" + (System.currentTimeMillis() - time) + ">ms!!!");
 					} finally {
 						System.out.println("After sending RELEASE, current state<" + state + ">, replyCnt<" + replyCnt + ">, failedFlg<" +failedFlg + ">, inquireFlg<" + inquireSendFlg + ">...");
@@ -240,6 +241,7 @@ public class ClientHandler {
 					sendMsg2Client("release", targetID);
 					System.out.println("<RELEASE> has been sent to client <" + targetID + "> in the QUORUM!!!!!!!!!!!!");
 				}				
+				inquireRecvQ.clear();
 			} finally {
 				System.out.println("After sending RELEASE, current state<" + state + ">, replyCnt<" + replyCnt + ">, failedFlg<" +failedFlg + ">, inquireFlg<" + inquireSendFlg + ">...");
 				System.out.println("REQUEST waiting queue<" + reqWaitingQ.size() + ">, INQUIRE waiting queue<" + inqWaitingQ.size() + ">...");
@@ -318,6 +320,7 @@ public class ClientHandler {
 						sendMsg2Client("release", targetID);
 						System.out.println("<RELEASE> has been sent to client <" + targetID + "> in the QUORUM!!!!!!!!!!!!");
 					}						
+					inquireRecvQ.clear();
 				} finally {
 					System.out.println("After sending RELEASE, current state<" + state + ">, replyCnt<" + replyCnt + ">, failedFlg<" +failedFlg + ">, inquireFlg<" + inquireSendFlg + ">...");
 					System.out.println("REQUEST waiting queue<" + reqWaitingQ.size() + ">, INQUIRE waiting queue<" + inqWaitingQ.size() + ">...");
@@ -413,6 +416,7 @@ public class ClientHandler {
 								sendMsg2Client("release", targetID);
 								System.out.println("<RELEASE> has been sent to client <" + targetID + "> in the QUORUM!!!!!!!!!!!!");
 							}						
+							inquireRecvQ.clear();
 						} finally {
 							System.out.println("After sending RELEASE, current state<" + state + ">, replyCnt<" + replyCnt + ">, failedFlg<" +failedFlg + ">, inquireFlg<" + inquireSendFlg + ">...");
 							System.out.println("REQUEST waiting queue<" + reqWaitingQ.size() + ">, INQUIRE waiting queue<" + inqWaitingQ.size() + ">...");

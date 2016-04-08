@@ -81,13 +81,13 @@ public class Client {
 					Thread inSocketHandlerThread = new Thread(new Runnable() {
 						public void run() {
 							try {
-								long time = System.currentTimeMillis();
+								//long time = System.currentTimeMillis();
 								ObjectInputStream in = new ObjectInputStream(inSocket.getInputStream());
 								Message msgIn = (Message) in.readObject();
 								System.out.println("Receive a message: <" + msgIn.getMsgType() + ">, TS <" + msgIn.getTimeStamp() + ">, from client <" + msgIn.getSenderID() + ">");
 								in.close();
 								inSocket.close();
-								System.out.println("Time spend on setting up a socket is: <" + (System.currentTimeMillis() - time) + ">ms!!!");
+								//System.out.println("Time spend on setting up a socket is: <" + (System.currentTimeMillis() - time) + ">ms!!!");
 								
 								if (msgIn.getMsgType().equals("request")) {
 									clientHandler.requestHandler(msgIn, clientID);
