@@ -87,7 +87,7 @@ public class ClientHandler {
 				lock.lock();
 //				System.out.println("Wait for the signal of leaving CS!");
 //				long time = System.currentTimeMillis();
-//				cond.await();	// Hand over the lock
+				cond.await();	// Hand over the lock
 //				System.out.println("Time spend elapsed on waiting for CS leaving signal: <" + (System.currentTimeMillis() - time) + ">ms!!!");
 				
 				try {
@@ -138,11 +138,11 @@ public class ClientHandler {
 			quorumRecvCnt[msgIn.getSenderID() - 1] ++;
 			if (currentRequest.getSenderID() == clientID) {	// Don't send reply to myself, just replyCnt++
 				replyCnt ++;
-				msgExCntTotal++;
-				msgRecvCnt[REPLY]++;	// Same as receiving a reply
+//				msgExCntTotal++;
+//				msgRecvCnt[REPLY]++;	// Same as receiving a reply
 				if (replyCnt == QUORUM[clientID - 1].length) {
 					lock.lock();
-//					cond.signal();	// wake another awaiting lock up
+					cond.signal();	// wake another awaiting lock up
 					try {
 						replyCnt = 0;
 						failedFlg = false;	// Trust me, this is correct!
@@ -209,7 +209,7 @@ public class ClientHandler {
 		replyCnt ++;
 		if (replyCnt == QUORUM[clientID - 1].length) {
 			lock.lock();
-//			cond.signal();
+			cond.signal();
 			try {
 				replyCnt = 0;
 				failedFlg = false;	// Trust me, this is correct!
@@ -289,7 +289,7 @@ public class ClientHandler {
 			replyCnt ++;
 			if (replyCnt == QUORUM[clientID - 1].length) {
 				lock.lock();
-//				cond.signal();
+				cond.signal();
 				try {
 					replyCnt = 0;
 					failedFlg = false;	// Trust me, this is correct!
@@ -325,6 +325,8 @@ public class ClientHandler {
 				}
 			}
 		} else {
+			msgExCntTotal++;
+			msgSendCnt[REPLY]++;
 			sendMsg2Client("reply", currentRequest.getSenderID());
 		}
 		System.out.println("Send <REPLY> to new HP client <" + currentRequest.getSenderID() + ">");
@@ -363,12 +365,12 @@ public class ClientHandler {
 			currentRequest = reqWaitingQ.take();
 			state = LOCKED;	// Unchanged
 			if (currentRequest.getSenderID() == clientID) {	// Don't send reply to myself, just replyCnt++
-				msgExCntTotal++;
-				msgRecvCnt[REPLY]++;
+//				msgExCntTotal++;
+//				msgRecvCnt[REPLY]++;
 				replyCnt ++;
 				if (replyCnt == QUORUM[clientID - 1].length) {
 					lock.lock();
-//					cond.signal();
+					cond.signal();
 					try {
 						replyCnt = 0;
 						failedFlg = false;	// Trust me, this is correct!

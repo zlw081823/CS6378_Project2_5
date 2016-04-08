@@ -74,6 +74,7 @@ public class Client {
 			reqGenerateThread.start();
 			
 			while (listening) {
+				System.out.println("Waiting for incoming message!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 				Socket inSocket = listenSocket.accept();
 				
 				if (shutdownRequest == false) {
