@@ -124,6 +124,7 @@ public class Client {
 			}
 			listenSocket.close();
 			System.out.println("Client <" + clientID + "> is closed!");
+			System.exit(0);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
