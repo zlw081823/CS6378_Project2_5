@@ -328,7 +328,7 @@ public class ClientHandler {
 		msgExCntTotal++;
 		msgRecvCnt[RELEASE]++;
 
-		quorumRecvCnt[clientID - 1] --;	// Indicate the finish of a previous REQUEST
+		quorumRecvCnt[currentRequest.getSenderID() - 1] --;	// Indicate the finish of a previous REQUEST ( Before refresh current request)
 		
 		if (inquireSendFlg == true) {
 			inquireSendFlg = false;
