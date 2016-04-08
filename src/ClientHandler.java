@@ -209,7 +209,7 @@ public class ClientHandler {
 		replyCnt ++;
 		if (replyCnt == QUORUM[clientID - 1].length) {
 			lock.lock();
-			cond.signal();
+//			cond.signal();
 			try {
 				replyCnt = 0;
 				failedFlg = false;	// Trust me, this is correct!
