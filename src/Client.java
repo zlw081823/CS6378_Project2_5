@@ -21,7 +21,7 @@ public class Client {
 		} catch (UnknownHostException e) {
 			e.printStackTrace();
 		}
-		int clientID = Integer.parseInt(clientHostname.split("\\.")[0].split("c")[1]) - 25; // 1 - 7
+		final int clientID = Integer.parseInt(clientHostname.split("\\.")[0].split("c")[1]) - 25; // 1 - 7
 
 		// Create a local file to keep track of message exchange information and time elapse
 		createFile(clientID);
@@ -41,7 +41,8 @@ public class Client {
 					while (listeningFlg);	
 					try {
 						Thread.sleep(1000);
-						listenSocket.close();
+						//listenSocket.close();
+						new Socket("dc" + clientID + ".utdallas.edu", 6666).close();
 					} catch (IOException e) {
 						System.out.println("Client <" + clientID + "> is closed!");						
 					} catch (InterruptedException e) {

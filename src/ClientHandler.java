@@ -240,7 +240,7 @@ public class ClientHandler {
 		msgRecvCnt[FAILED]++;
 		
 		failedFlg = true;
-		if (currentRequest.getSenderID() == clientID) {
+		if (currentRequest.getSenderID() == clientID) {	// only send YIELD when I send reply to OTHER clients
 			while (inquireRecvQ.isEmpty() == false) {
 				msgExCntTotal++;
 				msgSendCnt[YIELD]++;
