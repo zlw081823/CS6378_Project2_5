@@ -85,15 +85,15 @@ public class ClientHandler {
 				}
 			} else {
 				lock.lock();
-				System.out.println("Wait for the signal of leaving CS!");
-				long time = System.currentTimeMillis();
-				cond.await();	// Hand over the lock
-				System.out.println("Time spend elapsed on waiting for CS leaving signal: <" + (System.currentTimeMillis() - time) + ">ms!!!");
+//				System.out.println("Wait for the signal of leaving CS!");
+//				long time = System.currentTimeMillis();
+//				cond.await();	// Hand over the lock
+//				System.out.println("Time spend elapsed on waiting for CS leaving signal: <" + (System.currentTimeMillis() - time) + ">ms!!!");
 				
 				try {
-					time = System.currentTimeMillis();
+					//time = System.currentTimeMillis();
 					Message request = new Message(clientID, clientHostName, seqNum, "request", System.currentTimeMillis());
-					System.out.println("Time spend on GENERATING a REQUEST: <" + (System.currentTimeMillis() - time) + ">ms!!!");
+					//System.out.println("Time spend on GENERATING a REQUEST: <" + (System.currentTimeMillis() - time) + ">ms!!!");
 					seqNum ++;
 					
 					// Generate and send at the same time!
@@ -111,7 +111,7 @@ public class ClientHandler {
 									e.printStackTrace();
 								}
 							}
-							System.out.println("Time spend on SENDING a REQUEST: <" + (System.currentTimeMillis() - time) + ">ms!!!");
+							System.out.println("Time spend on SENDING a REQUEST to all clients in the quorum: <" + (System.currentTimeMillis() - time) + ">ms!!!");
 						}
 					}).start();
 					
@@ -142,23 +142,25 @@ public class ClientHandler {
 				msgRecvCnt[REPLY]++;	// Same as receiving a reply
 				if (replyCnt == QUORUM[clientID - 1].length) {
 					lock.lock();
-					cond.signal();	// wake another awaiting lock up
+//					cond.signal();	// wake another awaiting lock up
 					try {
 						replyCnt = 0;
 						failedFlg = false;	// Trust me, this is correct!
 						System.out.println("Enter CRITICAL SECTION!!!!!!!");
 						long time  = System.currentTimeMillis();
 						logInfo(currentRequest.getSenderID(), System.currentTimeMillis() - currentRequest.getTimeStamp());
-						System.out.println("Time spend to log the info into file: <" + (System.currentTimeMillis() - time) + ">ms!!!!");
+						//System.out.println("Time spend to log the info into file: <" + (System.currentTimeMillis() - time) + ">ms!!!!");
 						time = System.currentTimeMillis();
 						sendRequest2Server(currentRequest);
 						System.out.println("Leave CRITICAL SECTION!!!!!!! Total time spent in CS: <" + (System.currentTimeMillis() - time) + ">ms!!!");
+						time = System.currentTimeMillis();
 						for (int targetID : QUORUM[clientID - 1]) {
 							msgExCntTotal++;
 							msgSendCnt[RELEASE]++;
 							sendMsg2Client("release", targetID);
 							System.out.println("<RELEASE> has been sent to client <" + targetID + "> in the QUORUM!!!!!!!!!!!!");
-						}						
+						}	
+						System.out.println("Time spend on SENDING RELEASE to all clients in the quorum: <" + (System.currentTimeMillis() - time) + ">ms!!!");
 					} finally {
 						System.out.println("After sending RELEASE, current state<" + state + ">, replyCnt<" + replyCnt + ">, failedFlg<" +failedFlg + ">, inquireFlg<" + inquireSendFlg + ">...");
 						System.out.println("REQUEST waiting queue<" + reqWaitingQ.size() + ">, INQUIRE waiting queue<" + inqWaitingQ.size() + ">...");
@@ -194,7 +196,7 @@ public class ClientHandler {
 					System.out.println("Send <FAILED> to client <" + msgIn.getSenderID() + ">");
 				}						
 			} else {
-				System.out.println("Previous request from the same client has not been processed or has not finished processing!");
+				System.out.println("Previous <REQUEST> from the same client has not been processed or has not finished processing!");
 			}
 		}
 	}
@@ -214,7 +216,7 @@ public class ClientHandler {
 				System.out.println("Enter CRITICAL SECTION!!!!!!!");
 				long time  = System.currentTimeMillis();
 				logInfo(currentRequest.getSenderID(), System.currentTimeMillis() - currentRequest.getTimeStamp());
-				System.out.println("Time spend to log the info into file: <" + (System.currentTimeMillis() - time) + ">ms!!!!");
+				//System.out.println("Time spend to log the info into file: <" + (System.currentTimeMillis() - time) + ">ms!!!!");
 				time = System.currentTimeMillis();
 				sendRequest2Server(currentRequest);
 				System.out.println("Leave CRITICAL SECTION!!!!!!! Total time spent in CS: <" + (System.currentTimeMillis() - time) + ">ms!!!");
@@ -230,7 +232,6 @@ public class ClientHandler {
 				System.out.println("Requests from quorum member: 1<" + quorumRecvCnt[0] + ">, 2<" + quorumRecvCnt[1] + ">, 3<" + quorumRecvCnt[2] + ">, 4<" + quorumRecvCnt[3] + ">, 5<" + quorumRecvCnt[4] + ">, 6<" + quorumRecvCnt[5] + ">, 7<" + quorumRecvCnt[6] + ">..,");
 				lock.unlock();
 			}
-
 		}
 	}
 	
@@ -247,7 +248,7 @@ public class ClientHandler {
 				int targetID = inquireRecvQ.take().getSenderID();
 				sendMsg2Client("yield", targetID);
 				replyCnt --;
-				System.out.println("Send postponed <YIELD> to client <" + targetID + "> due to receiving FAILED!");
+				System.out.println("Send postponed <YIELD> to client <" + targetID + "> due to receiving <FAILED>!");
 			}			
 		}
 	}
@@ -266,7 +267,7 @@ public class ClientHandler {
 			msgSendCnt[YIELD]++;
 			sendMsg2Client("yield", msgIn.getSenderID());
 			replyCnt --;
-			System.out.println("Send <YIELD> to cliend <" + msgIn.getSenderID() + "> due to existing FAILED received!");
+			System.out.println("Send <YIELD> to client <" + msgIn.getSenderID() + "> due to existing FAILED received!");
 		} else {
 			inquireRecvQ.put(msgIn);	// All these are INQUIRE
 		}
@@ -288,14 +289,14 @@ public class ClientHandler {
 			replyCnt ++;
 			if (replyCnt == QUORUM[clientID - 1].length) {
 				lock.lock();
-				cond.signal();
+//				cond.signal();
 				try {
 					replyCnt = 0;
 					failedFlg = false;	// Trust me, this is correct!
 					System.out.println("Enter CRITICAL SECTION!!!!!!!");
 					long time  = System.currentTimeMillis();
 					logInfo(currentRequest.getSenderID(), System.currentTimeMillis() - currentRequest.getTimeStamp());
-					System.out.println("Time spend to log the info into file: <" + (System.currentTimeMillis() - time) + ">ms!!!!");
+					//System.out.println("Time spend to log the info into file: <" + (System.currentTimeMillis() - time) + ">ms!!!!");
 					time = System.currentTimeMillis();
 					sendRequest2Server(currentRequest);
 					System.out.println("Leave CRITICAL SECTION!!!!!!! Total time spent in CS: <" + (System.currentTimeMillis() - time) + ">ms!!!");
@@ -310,6 +311,17 @@ public class ClientHandler {
 					System.out.println("REQUEST waiting queue<" + reqWaitingQ.size() + ">, INQUIRE waiting queue<" + inqWaitingQ.size() + ">...");
 					System.out.println("Requests from quorum member: 1<" + quorumRecvCnt[0] + ">, 2<" + quorumRecvCnt[1] + ">, 3<" + quorumRecvCnt[2] + ">, 4<" + quorumRecvCnt[3] + ">, 5<" + quorumRecvCnt[4] + ">, 6<" + quorumRecvCnt[5] + ">, 7<" + quorumRecvCnt[6] + ">..,");
 					lock.unlock();
+				}
+			} else {
+				if (failedFlg == true) {	// failed received when I already sent reply to other clients
+					while (inquireRecvQ.isEmpty() == false) {
+						msgExCntTotal++;
+						msgSendCnt[YIELD]++;
+						int targetID = inquireRecvQ.take().getSenderID();
+						sendMsg2Client("yield", targetID);
+						replyCnt --;
+						System.out.println("Send postponed <YIELD> to client <" + targetID + "> due to receiving <FAILED>!");
+					}			
 				}
 			}
 		} else {
@@ -356,14 +368,14 @@ public class ClientHandler {
 				replyCnt ++;
 				if (replyCnt == QUORUM[clientID - 1].length) {
 					lock.lock();
-					cond.signal();
+//					cond.signal();
 					try {
 						replyCnt = 0;
 						failedFlg = false;	// Trust me, this is correct!
 						System.out.println("Enter CRITICAL SECTION!!!!!!!");
 						long time  = System.currentTimeMillis();
 						logInfo(currentRequest.getSenderID(), System.currentTimeMillis() - currentRequest.getTimeStamp());
-						System.out.println("Time spend to log the info into file: <" + (System.currentTimeMillis() - time) + ">ms!!!!");
+						//System.out.println("Time spend to log the info into file: <" + (System.currentTimeMillis() - time) + ">ms!!!!");
 						time = System.currentTimeMillis();
 						sendRequest2Server(currentRequest);
 						System.out.println("Leave CRITICAL SECTION!!!!!!! Total time spent in CS: <" + (System.currentTimeMillis() - time) + ">ms!!!");
@@ -378,6 +390,17 @@ public class ClientHandler {
 						System.out.println("REQUEST waiting queue<" + reqWaitingQ.size() + ">, INQUIRE waiting queue<" + inqWaitingQ.size() + ">...");
 						System.out.println("Requests from quorum member: 1<" + quorumRecvCnt[0] + ">, 2<" + quorumRecvCnt[1] + ">, 3<" + quorumRecvCnt[2] + ">, 4<" + quorumRecvCnt[3] + ">, 5<" + quorumRecvCnt[4] + ">, 6<" + quorumRecvCnt[5] + ">, 7<" + quorumRecvCnt[6] + ">..,");
 						lock.unlock();
+					}
+				} else {
+					if (failedFlg == true) {	// failed received when I already sent reply to other clients
+						while (inquireRecvQ.isEmpty() == false) {
+							msgExCntTotal++;
+							msgSendCnt[YIELD]++;
+							int targetID = inquireRecvQ.take().getSenderID();
+							sendMsg2Client("yield", targetID);
+							replyCnt --;
+							System.out.println("Send postponed <YIELD> to client <" + targetID + "> due to receiving <FAILED>!");
+						}			
 					}
 				}
 			} else {
