@@ -57,7 +57,6 @@ public class ClientHandler {
 		int seqNum  = 1;
 		
 		while (seqNum <= msgNum) {
-			long time = System.currentTimeMillis();
 			if (seqNum == 1) {
 				Message request = new Message(clientID, clientHostName, seqNum, "request", System.currentTimeMillis());
 				seqNum ++;
@@ -87,16 +86,20 @@ public class ClientHandler {
 			} else {
 				lock.lock();
 				System.out.println("Wait for the signal of leaving CS!");
+				long time = System.currentTimeMillis();
 				cond.await();	// Hand over the lock
-				System.out.println("Wake up!");
+				System.out.println("Time spend elapsed on waiting for CS leaving signal: <" + (System.currentTimeMillis() - time) + ">ms!!!");
 				
 				try {
+					time = System.currentTimeMillis();
 					Message request = new Message(clientID, clientHostName, seqNum, "request", System.currentTimeMillis());
+					System.out.println("Time spend on GENERATING a REQUEST: <" + (System.currentTimeMillis() - time) + ">ms!!!");
 					seqNum ++;
 					
 					// Generate and send at the same time!
 					new Thread(new Runnable() {
 						public void run() {
+							long time = System.currentTimeMillis();
 							for (int targetID : QUORUM[clientID - 1]) {	// Send the request to everyone in the QUORUM ( ID - 1) -> out of bound!
 								try {
 									Socket sendSocket = new Socket("dc" + (targetID + 25) + ".utdallas.edu", 6666);
@@ -108,6 +111,7 @@ public class ClientHandler {
 									e.printStackTrace();
 								}
 							}
+							System.out.println("Time spend on SENDING a REQUEST: <" + (System.currentTimeMillis() - time) + ">ms!!!");
 						}
 					}).start();
 					
@@ -120,7 +124,6 @@ public class ClientHandler {
 					lock.unlock();
 				}				
 			}
-			System.out.println("Time spend on generating and sending a REQUEST: <" + (System.currentTimeMillis() - time) + ">ms!!!");
 		}	
 	}
 	
