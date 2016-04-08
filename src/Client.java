@@ -85,7 +85,7 @@ public class Client {
 							} else if (msgIn.getMsgType().equals("reply")) {
 								clientHandler.replyHandler(clientID);
 							} else if (msgIn.getMsgType().equals("failed")) {
-								clientHandler.failedHandler();
+								clientHandler.failedHandler(clientID);
 							} else if (msgIn.getMsgType().equals("inquire")) {	// From those who send you REPLY
 								clientHandler.inquireHandler(msgIn);
 							} else if (msgIn.getMsgType().equals("yield")) {

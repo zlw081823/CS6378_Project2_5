@@ -234,19 +234,21 @@ public class ClientHandler {
 		}
 	}
 	
-	public void failedHandler () throws InterruptedException {
+	public void failedHandler (int clientID) throws InterruptedException {
 		// Routine count
 		msgExCntTotal++;
 		msgRecvCnt[FAILED]++;
 		
 		failedFlg = true;
-		while (inquireRecvQ.isEmpty() == false) {
-			msgExCntTotal++;
-			msgSendCnt[YIELD]++;
-			int targetID = inquireRecvQ.take().getSenderID();
-			sendMsg2Client("yield", targetID);
-			replyCnt --;
-			System.out.println("Send postponed <YIELD> to client <" + targetID + "> due to receiving FAILED!");
+		if (currentRequest.getSenderID() == clientID) {
+			while (inquireRecvQ.isEmpty() == false) {
+				msgExCntTotal++;
+				msgSendCnt[YIELD]++;
+				int targetID = inquireRecvQ.take().getSenderID();
+				sendMsg2Client("yield", targetID);
+				replyCnt --;
+				System.out.println("Send postponed <YIELD> to client <" + targetID + "> due to receiving FAILED!");
+			}			
 		}
 	}
 	
